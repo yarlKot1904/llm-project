@@ -1,0 +1,1 @@
+{"id": "chatcmpl-456", "object": "chat.completion", "created": 1793993336, "model": "qwen3-graphrag-1050ti", "system_fingerprint": "fp_ollama", "choices": [{"index": 0, "message": {"role": "assistant", "content": "12 шт."}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 922, "completion_tokens": 6, "total_tokens": 928}}

@@ -1,0 +1,1 @@
+{"id": "chatcmpl-390", "object": "chat.completion", "created": 1793992972, "model": "qwen3-graphrag-1050ti", "system_fingerprint": "fp_ollama", "choices": [{"index": 0, "message": {"role": "assistant", "content": "По регламенту SP-108."}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 942, "completion_tokens": 13, "total_tokens": 955}}

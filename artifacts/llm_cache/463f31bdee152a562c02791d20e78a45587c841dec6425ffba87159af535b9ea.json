@@ -1,0 +1,1 @@
+{"id": "chatcmpl-938", "object": "chat.completion", "created": 1793993227, "model": "qwen3-graphrag-1050ti", "system_fingerprint": "fp_ollama", "choices": [{"index": 0, "message": {"role": "assistant", "content": "Деталь P-2054C."}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 1017, "completion_tokens": 12, "total_tokens": 1029}}

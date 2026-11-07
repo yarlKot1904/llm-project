@@ -1,0 +1,1 @@
+{"id": "chatcmpl-662", "object": "chat.completion", "created": 1793992661, "model": "qwen3:4b-instruct-2507-q4_K_M", "system_fingerprint": "fp_ollama", "choices": [{"index": 0, "message": {"role": "assistant", "content": "Заказывать деталь P-1042B."}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 960, "completion_tokens": 15, "total_tokens": 975}}

@@ -1,0 +1,1 @@
+{"id": "chatcmpl-716", "object": "chat.completion", "created": 1793993003, "model": "qwen3-graphrag-1050ti", "system_fingerprint": "fp_ollama", "choices": [{"index": 0, "message": {"role": "assistant", "content": "Поставщик: ТермоПрибор"}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 948, "completion_tokens": 13, "total_tokens": 961}}

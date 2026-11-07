@@ -1,0 +1,1 @@
+{"id": "chatcmpl-640", "object": "chat.completion", "created": 1793992130, "model": "qwen3-graphrag-1050ti", "system_fingerprint": "fp_ollama", "choices": [{"index": 0, "message": {"role": "assistant", "content": "{\n  \"answer\": \"ТермоПрибор\",\n  \"score\": 10\n}"}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 508, "completion_tokens": 24, "total_tokens": 532}}
