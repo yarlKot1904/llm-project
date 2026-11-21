@@ -16,12 +16,14 @@ _LOCAL_SYSTEM = (
     "INDICATES указывает вид узла, HAS_PART связывает модель с номером детали, IS_A связывает деталь с видом узла. "
     "FIXED_BY указывает регламент для кода ошибки, BELONGS_TO — линейку модели, SUPPLIED_BY — поставщика детали. "
     "FAILED означает зафиксированный отказ узла. "
-    "Для детали в модели сопоставь HAS_PART и IS_A с нужным видом узла. "
-    "REPLACED_BY заменяет номер детали, а не модель. "
-    "Если нужна актуальная деталь, пройди от старой до последней новой. "
-    "Укажи поставщика актуальной детали, только если спрашивают о поставщике. "
+    "Когда спрашивают, какую деталь заказать или установить при ошибке на модели: найди узел по INDICATES "
+    "и деталь этого узла (IS_A) в нужной модели (HAS_PART). "
+    "Если от этой детали есть цепочка REPLACED_BY, назови последнюю деталь цепочки; если REPLACED_BY для неё нет, "
+    "значит деталь не менялась — назови саму эту деталь. "
+    "При вопросе о поставщике детали: если у заменённой детали нет прямого факта SUPPLIED_BY, укажи поставщика "
+    "предыдущей детали из её цепочки REPLACED_BY. "
     "При вопросе об установленных деталях указывай модели с нужной HAS_PART. "
-    "Сохраняй коды без изменений. Если факты не отвечают на вопрос, напиши «В базе знаний не найдено»."
+    "Сохраняй коды без изменений. Напиши «В базе знаний не найдено» только если в фактах совсем нет ответа."
 )
 
 
@@ -40,7 +42,6 @@ def _anchors(question: str, kb: KnowledgeBase) -> list[str] | None:
 
 
 def _paths(graph: nx.DiGraph, anchors: list[str]) -> dict[tuple[str, str], None]:
-    # The view merges neighbours through unordered sets; a copy preserves insertion order.
     undirected = graph.to_undirected()
     if len(anchors) == 1:
         distances = nx.single_source_shortest_path_length(undirected, anchors[0], cutoff=2)
@@ -64,16 +65,19 @@ def _add_replacements(graph: nx.DiGraph, edges: dict[tuple[str, str], None], sup
     pending = list(dict.fromkeys(node for edge in edges for node in edge if node.startswith("Part:")))
     seen = set(pending)
     for part in pending:
-        replacement = False
         for _, target, attrs in graph.out_edges(part, data=True):
-            if attrs["type"] != "REPLACED_BY":
-                continue
-            replacement = True
-            edges[part, target] = None
-            if target not in seen:
-                seen.add(target)
-                pending.append(target)
-        if suppliers and not replacement:
+            if attrs["type"] == "REPLACED_BY":
+                edges[part, target] = None
+                if target not in seen:
+                    seen.add(target)
+                    pending.append(target)
+        if suppliers:
+            for source, _, attrs in graph.in_edges(part, data=True):
+                if attrs["type"] == "REPLACED_BY":
+                    edges[source, part] = None
+                    if source not in seen:
+                        seen.add(source)
+                        pending.append(source)
             for _, target, attrs in graph.out_edges(part, data=True):
                 if attrs["type"] == "SUPPLIED_BY":
                     edges[part, target] = None
@@ -86,15 +90,7 @@ def _answered(text: str, sources: list[str], facts: list[str] | None = None) -> 
 
 
 def local_search(question: str, kb: KnowledgeBase, llm: LLMClient) -> Answer:
-    """Отвечает на вопрос о конкретных сущностях по фактам из графа.
-
-    Опорные сущности ищутся без модели: коды через `find_codes`, названия через `find_names`.
-    При двух и более опорных сущностях берутся факты на путях длиной до трёх связей между ними
-    и цепочки `REPLACED_BY` от деталей на этих путях. При одной берётся окрестность на глубину
-    до двух связей. Модель получает пронумерованный список фактов и отвечает только по нему.
-    Если в вопросе есть код, которого нет в графе, или фактов нет, возвращается
-    `Answer(..., refused=True)` без вызова модели.
-    """
+    """Отвечает на вопрос о конкретных сущностях по фактам из графа."""
     anchors = _anchors(question, kb)
     if not anchors:
         return Answer(REFUSAL, refused=True)
@@ -127,12 +123,7 @@ def local_search(question: str, kb: KnowledgeBase, llm: LLMClient) -> Answer:
 
 
 def global_search(question: str, kb: KnowledgeBase, llm: LLMClient) -> Answer:
-    """Отвечает на обзорный вопрос по сводкам сообществ в два шага.
-
-    Шаг map: для каждой сводки модель даёт частичный ответ и оценку полезности от 0 до 10.
-    Шаг reduce: частичные ответы с оценкой выше 0 объединяются в итоговый ответ.
-    Если таких ответов нет, возвращается `Answer(..., refused=True)`.
-    """
+    """Отвечает на обзорный вопрос по сводкам сообществ в два шага."""
     if _anchors(question, kb) is None:
         return Answer(REFUSAL, refused=True)
 
@@ -145,11 +136,11 @@ def global_search(question: str, kb: KnowledgeBase, llm: LLMClient) -> Answer:
             {
                 "role": "system",
                 "content": (
-                    "Оцени, что эта сводка даёт для ответа на вопрос. Верни JSON с answer и score от 0 до 10. "
-                    'При нерелевантной сводке верни {"answer":"","score":0}. '
-                    "Иначе выпиши относящиеся к вопросу модели, детали и численные данные; "
-                    "сохрани разбивку по моделям, если она есть. "
-                    "Не дополняй отсутствующие данные."
+                    "Оцени, содержит ли сводка ответ на вопрос. Верни JSON с answer и score (от 0 до 10). "
+                    "Если в вопросе названа линейка («Арктика», «Бриз», «Гольфстрим»), а сводка описывает "
+                    'другую линейку или не содержит ответа, верни {"answer": "", "score": 0}. '
+                    "Если сводка отвечает на вопрос, выпиши ответ со всеми кодами, узлами и числами "
+                    "и поставь score от 5 до 10."
                 ),
             },
             {"role": "user", "content": f"Сводка:\n{community.summary}\n\nВопрос: {question}"},
@@ -172,14 +163,17 @@ def global_search(question: str, kb: KnowledgeBase, llm: LLMClient) -> Answer:
     if not parts:
         return Answer(REFUSAL, refused=True)
 
-    context = "\n".join(f"- {text}" for _, text in sorted(parts, key=lambda part: -part[0]))
+    context = "\n".join(f"- (оценка {score}) {text}" for score, text in sorted(parts, key=lambda part: -part[0]))
     messages = [
         {
             "role": "system",
             "content": (
-                "Ответь по частичным ответам сообществ. Учитывай указанную в вопросе линейку. "
-                "При сравнении частоты учитывай числа из всех релевантных частей, не дублируй модели. "
-                "Кратко назови результат и поясни его. Если ответа нет, напиши «В базе знаний не найдено»."
+                "Сформулируй прямой и точный ответ на вопрос по частичным ответам сообществ (1–2 предложения). "
+                "Если спрашивают, какой узел отказывает чаще всего — назови этот узел (например: пусковое реле, "
+                "циркуляционный насос, вентилятор испарителя) и число отказов. "
+                "Если спрашивают, у какой модели больше всего отказов — назови код модели и число её отказов. "
+                "Если спрашивают про снятые с производства детали — перечисли все их коды (P-...). "
+                "Если данных для ответа нет, напиши «В базе знаний не найдено»."
             ),
         },
         {"role": "user", "content": f"Вопрос: {question}\nЧастичные ответы:\n{context}"},

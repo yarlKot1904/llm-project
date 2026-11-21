@@ -220,8 +220,8 @@ def run_agent(
                     result.needs_confirmation = True
                     result.pending_action = {"tool": name, "args": args}
                     result.answer = (
-                        f'Подтвердите заказ детали {args["part_id"]} для {args["model"]}, '
-                        f'{args["qty"]} шт., склад {args["warehouse"]}.'
+                        f'Подтвердите заказ детали {args["part_id"]} для {args["model"]} '
+                        f'(количество: {args["qty"]}, склад {args["warehouse"]}).'
                     )
                     return result
             if error:
